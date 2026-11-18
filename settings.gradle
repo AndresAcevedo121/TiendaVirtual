@@ -1,0 +1,3 @@
+rootProject.name = 'proyectoTienda'
+include 'backend'
+

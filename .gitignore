@@ -1,0 +1,133 @@
+# =============================================================================
+# .gitignore · Pizza Americana - Tienda Virtual
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. SECRETOS, CREDENCIALES Y VARIABLES DE ENTORNO (SEGURIDAD CRÍTICA)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.env
+
+# Certificados, llaves privadas y almacenes de claves
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+*.jks
+id_rsa*
+id_ed25519*
+*credentials*.json
+*secrets*.json
+
+# Configuraciones locales con contraseñas sensibles
+application-local.properties
+application-secret.properties
+application-prod.properties
+application-*.local.properties
+
+# -----------------------------------------------------------------------------
+# 2. BASES DE DATOS, MIGRACIONES LOCALES Y DUMPS SENSIBLES
+# -----------------------------------------------------------------------------
+database/
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.backup
+*.rdb
+
+# -----------------------------------------------------------------------------
+# 3. ARCHIVOS TEMPORALES DE DOCUMENTACIÓN, BOCETOS Y DIAGRAMAS LOCALES
+# -----------------------------------------------------------------------------
+# Gráficos y diagramas generados en local
+*.png
+*.jpg
+*.jpeg
+*.svg
+
+# Guías interactivas y pruebas de diagramas
+guia_arquitectura_tienda_virtual.html
+guia_*.html
+arquitectura_*.html
+diagrama_*.html
+test_*.html
+verificar_*.html
+claude_*.html
+
+# Documentos fuente y transcripciones de requerimientos
+*.docx
+*.pdf
+requisitos_extraidos.txt
+doc_extracted_text.txt
+
+# Scripts temporales de extracción y parseo
+clean_guia.py
+parse_artifact.py
+
+# -----------------------------------------------------------------------------
+# 4. FRONTEND (NODE.JS, VITE Y REACT)
+# -----------------------------------------------------------------------------
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+.vite/
+frontend/.vite/
+
+# Logs de gestores de paquetes
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -----------------------------------------------------------------------------
+# 5. BACKEND (JAVA, GRADLE Y SPRING BOOT)
+# -----------------------------------------------------------------------------
+.gradle/
+backend/.gradle/
+build/
+backend/build/
+out/
+backend/out/
+bin/
+
+# Artefactos compilados
+*.class
+*.war
+*.ear
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+!backend/gradle/wrapper/gradle-wrapper.jar
+
+# Logs del servidor y de ejecución
+logs/
+*.log
+*.log.*
+
+# -----------------------------------------------------------------------------
+# 6. ARCHIVOS DE EDITORES, IDEs Y SISTEMA OPERATIVO
+# -----------------------------------------------------------------------------
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Sistema operativo (Windows / Mac / Linux)
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
