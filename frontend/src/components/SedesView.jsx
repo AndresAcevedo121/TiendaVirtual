@@ -33,7 +33,7 @@ export default function SedesView({ tiendas, tiendaActual, onSelectTienda, onNav
           <span className="eyebrow-label">Red de Puntos de Venta (GET /api/v1/tiendas)</span>
           <h1 className="page-title">Nuestras Sedes en Medellín y el Valle de Aburrá</h1>
           <p className="page-subtitle">
-            Selecciona la sede más cercana para consultar su disponibilidad en vivo, tiempos estimados de entrega y precios del catálogo.
+            Consulta los puntos de venta de Pizza Americana en el área metropolitana, horarios de atención y tiempos estimados.
           </p>
         </div>
 
@@ -125,17 +125,10 @@ export default function SedesView({ tiendas, tiendaActual, onSelectTienda, onNav
               <button
                 type="button"
                 disabled={isBlocked}
-                className={isSelected ? 'btn-soft-navy btn-full' : 'btn-primary-pill btn-full'}
-                onClick={() => {
-                  onSelectTienda(sede);
-                  onNavigateMenu();
-                }}
+                className="btn-soft-navy btn-full"
+                onClick={onNavigateMenu}
               >
-                {isBlocked
-                  ? 'No disponible temporalmente'
-                  : isSelected
-                    ? 'Ver Menú de esta Sede'
-                    : 'Pedir desde esta Sede'}
+                {isBlocked ? 'No disponible temporalmente' : 'Ver Menú'}
               </button>
             </article>
           );

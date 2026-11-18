@@ -112,27 +112,16 @@ export default function Header({
             </button>
           </div>
 
-          {/* Selector modal de Sede */}
+          {/* Botón Validar Cobertura (preparado para servicio de validación) */}
           <button
             type="button"
             className="sede-picker-btn"
-            onClick={onOpenSedesModal}
-            title="Cambiar sede de atención"
+            title="Validar cobertura"
           >
             <MapPin size={16} className="text-primary" />
             <span className="sede-picker-text">
-              {tiendaActual ? (
-                <>
-                  <strong>{tiendaActual.nombre}</strong>
-                  {tiendaActual.tiempoEntregaMinutos ? (
-                    <span className="sede-time-tag">~{tiendaActual.tiempoEntregaMinutos} min</span>
-                  ) : null}
-                </>
-              ) : (
-                <span>Elegir sede ({tiendas.length})</span>
-              )}
+              <strong>Validar cobertura</strong>
             </span>
-            <ChevronDown size={15} className="text-muted" />
           </button>
         </div>
 

@@ -102,9 +102,9 @@ export default function MenuView({
             </div>
           </div>
 
-          <button type="button" className="btn-soft-navy" onClick={onOpenSedesModal}>
-            <span>Cambiar Sede</span>
-            <ChevronRight size={16} />
+          <button type="button" className="btn-soft-navy" title="Validar cobertura">
+            <MapPin size={15} />
+            <span>Validar cobertura</span>
           </button>
         </div>
       </section>

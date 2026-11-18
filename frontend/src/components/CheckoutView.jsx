@@ -343,8 +343,8 @@ export default function CheckoutView({
                   </span>
                 </div>
               </div>
-              <button type="button" className="btn-link-subtle" onClick={onOpenSedesModal}>
-                Cambiar sede
+              <button type="button" className="btn-link-subtle" title="Validar cobertura">
+                Validar cobertura
               </button>
             </div>
           </section>
