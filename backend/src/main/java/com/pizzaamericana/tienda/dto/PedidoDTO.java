@@ -1,7 +1,9 @@
 package com.pizzaamericana.tienda.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.List;
@@ -10,6 +12,7 @@ public class PedidoDTO {
 
     public static class CreacionRequest {
         @NotBlank
+        @Size(max = 64)
         private String orderToken; // UUID idempotente
         @NotNull
         private Integer idtienda;
@@ -22,6 +25,7 @@ public class PedidoDTO {
         private String clienteTelefono;
         private String clienteCorreo;
         @NotNull
+        @AssertTrue(message = "Debes autorizar el tratamiento de tus datos para continuar")
         private Boolean autorizacionDatos;
         
         // Dirección (Obligatoria solo si tipoEntrega == DOMICILIO, validada en servicio)

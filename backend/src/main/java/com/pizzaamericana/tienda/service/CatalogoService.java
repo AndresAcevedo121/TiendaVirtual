@@ -1,6 +1,7 @@
 package com.pizzaamericana.tienda.service;
 
 import com.pizzaamericana.tienda.dto.CatalogoDTO;
+import com.pizzaamericana.tienda.exception.NegocioException;
 import com.pizzaamericana.tienda.model.*;
 import com.pizzaamericana.tienda.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +40,7 @@ public class CatalogoService {
 
     public CatalogoDTO.MenuTiendaResponse obtenerMenuPorTienda(Integer idtienda) {
         Tienda tienda = tiendaRepository.findById(idtienda)
-                .orElseThrow(() -> new IllegalArgumentException("La tienda " + idtienda + " no existe."));
+                .orElseThrow(() -> new NegocioException("La tienda " + idtienda + " no existe."));
 
         CatalogoDTO.MenuTiendaResponse response = new CatalogoDTO.MenuTiendaResponse();
         response.setIdtienda(tienda.getIdtienda());

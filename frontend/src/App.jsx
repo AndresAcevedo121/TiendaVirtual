@@ -9,6 +9,7 @@ import PuntosView from './components/PuntosView';
 import CheckoutView from './components/CheckoutView';
 import SedesModal from './components/SedesModal';
 import GuestProfileModal from './components/GuestProfileModal';
+import CoberturaModal from './components/CoberturaModal';
 import Footer from './components/Footer';
 import { CartPanelContent } from './components/LiveCartSidebar';
 import { fetchTiendas, fetchCatalogo, cotizarPedido } from './services/api';
@@ -28,11 +29,13 @@ export default function App() {
   const [tiendaActual, setTiendaActual] = useState(null);
   const [catalogo, setCatalogo] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [errorCarga, setErrorCarga] = useState(null);
 
   const [activeView, setActiveView] = useState('menu'); // menu | configurator | promos | sedes | puntos | checkout
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPizza, setSelectedPizza] = useState(null);
   const [isSedesModalOpen, setIsSedesModalOpen] = useState(false);
+  const [isCoberturaModalOpen, setIsCoberturaModalOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
 
@@ -100,6 +103,7 @@ export default function App() {
       try {
         const tiendasData = await fetchTiendas();
         if (!active) return;
+        setErrorCarga(null);
         setTiendas(tiendasData);
         if (tiendasData.length > 0) {
           const savedStoreId = readStorage(STORAGE_KEYS.STORE_ID, null);
@@ -111,6 +115,7 @@ export default function App() {
         }
       } catch (err) {
         console.error('Error cargando tiendas:', err);
+        if (active) setErrorCarga(err.message);
       } finally {
         if (active) setLoading(false);
       }
@@ -128,9 +133,16 @@ export default function App() {
     async function loadMenu() {
       try {
         const cat = await fetchCatalogo(tiendaActual.idtienda);
-        if (active) setCatalogo(cat);
+        if (active) {
+          setCatalogo(cat);
+          setErrorCarga(null);
+        }
       } catch (err) {
         console.error('Error cargando catálogo:', err);
+        if (active) {
+          setCatalogo(null);
+          setErrorCarga(err.message);
+        }
       }
     }
     loadMenu();
@@ -178,6 +190,8 @@ export default function App() {
         if (!cancelled) setCotizacion(res);
       } catch (err) {
         console.error('Error cotizando pedido:', err);
+        // Sin respuesta del servidor no hay precio: se marca el error para bloquear el pedido
+        if (!cancelled) setCotizacion({ valido: false, error: true, mensaje: err.message });
       } finally {
         if (!cancelled) setQuoting(false);
       }
@@ -331,12 +345,18 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {errorCarga && (
+        <div className="info-banner info-banner--error" role="alert">
+          {errorCarga}
+        </div>
+      )}
       <Header
         activeView={activeView}
         onNavigate={navigateTo}
         tiendas={tiendas}
         tiendaActual={tiendaActual}
         onOpenSedesModal={() => setIsSedesModalOpen(true)}
+        onOpenCoberturaModal={() => setIsCoberturaModalOpen(true)}
         tipoEntrega={tipoEntrega}
         onChangeTipoEntrega={setTipoEntrega}
         searchQuery={searchQuery}
@@ -415,7 +435,9 @@ export default function App() {
             setCart={setCart}
             onUpdateQty={handleUpdateQty}
             onRemoveItem={handleRemoveItem}
+            tiendas={tiendas}
             tiendaActual={tiendaActual}
+            onSelectTienda={setTiendaActual}
             onOpenSedesModal={() => setIsSedesModalOpen(true)}
             tipoEntrega={tipoEntrega}
             onChangeTipoEntrega={setTipoEntrega}
@@ -496,6 +518,16 @@ export default function App() {
         customerDraft={customerDraft}
         onSave={handleSaveCustomerDraft}
         onClear={handleClearCustomerDraft}
+      />
+
+      <CoberturaModal
+        isOpen={isCoberturaModalOpen}
+        onClose={() => setIsCoberturaModalOpen(false)}
+        tiendas={tiendas}
+        tiendaActual={tiendaActual}
+        onSelectTienda={setTiendaActual}
+        customerDraft={customerDraft}
+        onSaveCustomerDraft={handleSaveCustomerDraft}
       />
     </div>
   );

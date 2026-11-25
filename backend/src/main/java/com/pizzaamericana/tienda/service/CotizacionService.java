@@ -1,6 +1,7 @@
 package com.pizzaamericana.tienda.service;
 
 import com.pizzaamericana.tienda.dto.CotizacionDTO;
+import com.pizzaamericana.tienda.exception.NegocioException;
 import com.pizzaamericana.tienda.model.*;
 import com.pizzaamericana.tienda.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +17,8 @@ import java.util.*;
 @Transactional(readOnly = true)
 public class CotizacionService {
 
+    private static final String RECOGER = "RECOGER";
+
     @Autowired
     private TiendaRepository tiendaRepository;
 
@@ -24,6 +27,9 @@ public class CotizacionService {
 
     @Autowired
     private EspecialidadTamanoRepository especialidadTamanoRepository;
+
+    @Autowired
+    private ProductoAdicionRepository productoAdicionRepository;
 
     @Autowired
     private TiendaProductoExcepcionRepository excepcionRepository;
@@ -36,7 +42,9 @@ public class CotizacionService {
 
     public CotizacionDTO.Response cotizarPedido(CotizacionDTO.Request request) {
         Tienda tienda = tiendaRepository.findById(request.getIdtienda())
-                .orElseThrow(() -> new IllegalArgumentException("La tienda " + request.getIdtienda() + " no existe."));
+                .orElseThrow(() -> new NegocioException("La tienda " + request.getIdtienda() + " no existe."));
+
+        boolean recoger = RECOGER.equalsIgnoreCase(request.getTipoEntrega());
 
         if (Boolean.TRUE.equals(tienda.getBloqueada())) {
             CotizacionDTO.Response err = new CotizacionDTO.Response();
@@ -57,7 +65,10 @@ public class CotizacionService {
 
         for (CotizacionDTO.ItemRequest itemReq : request.getItems()) {
             Producto producto = productoRepository.findById(itemReq.getIdproducto())
-                    .orElseThrow(() -> new IllegalArgumentException("El producto con ID " + itemReq.getIdproducto() + " no existe."));
+                    .orElseThrow(() -> new NegocioException("El producto con ID " + itemReq.getIdproducto() + " no existe."));
+
+            // Correccion 4: solo se vende lo que esta activo y es de tipo P u O
+            validarVendible(producto, recoger);
 
             // Verificar si el producto está bloqueado en esta tienda
             Optional<TiendaProductoExcepcion> exc = excepcionRepository.findByIdtiendaAndIdproducto(tienda.getIdtienda(), producto.getIdproducto());
@@ -80,13 +91,17 @@ public class CotizacionService {
             if ("P".equals(producto.getTipoProducto())) {
                 // Cálculo para Pizza Padre (Skill 01)
                 if (Boolean.TRUE.equals(itemReq.getEsMitadMitad())) {
+                    // Correccion 5: mitad y mitad solo si el producto lo permite
+                    if (!Boolean.TRUE.equals(producto.getPermiteDividir())) {
+                        throw new NegocioException("El producto '" + producto.getNombre() + "' no permite mitad y mitad.");
+                    }
                     if (itemReq.getIdespecialidad1() == null || itemReq.getIdespecialidad2() == null) {
-                        throw new IllegalArgumentException("Una pizza mitad y mitad requiere dos especialidades seleccionadas.");
+                        throw new NegocioException("Una pizza mitad y mitad requiere dos especialidades seleccionadas.");
                     }
                     Producto esp1 = productoRepository.findById(itemReq.getIdespecialidad1())
-                            .orElseThrow(() -> new IllegalArgumentException("Especialidad 1 no encontrada."));
+                            .orElseThrow(() -> new NegocioException("Especialidad 1 no encontrada."));
                     Producto esp2 = productoRepository.findById(itemReq.getIdespecialidad2())
-                            .orElseThrow(() -> new IllegalArgumentException("Especialidad 2 no encontrada."));
+                            .orElseThrow(() -> new NegocioException("Especialidad 2 no encontrada."));
 
                     BigDecimal r1 = obtenerRecargoTamano(producto.getIdproducto(), esp1.getIdproducto());
                     BigDecimal r2 = obtenerRecargoTamano(producto.getIdproducto(), esp2.getIdproducto());
@@ -100,19 +115,22 @@ public class CotizacionService {
                 } else {
                     if (itemReq.getIdespecialidad1() != null) {
                         Producto esp1 = productoRepository.findById(itemReq.getIdespecialidad1())
-                                .orElseThrow(() -> new IllegalArgumentException("Especialidad no encontrada."));
+                                .orElseThrow(() -> new NegocioException("Especialidad no encontrada."));
                         recargoEspecialidad = obtenerRecargoTamano(producto.getIdproducto(), esp1.getIdproducto());
                         descBuilder.append(" (").append(esp1.getNombre()).append(")");
                     }
                 }
 
-                // Sumar adiciones
-                if (itemReq.getIdadiciones() != null) {
+                // Correccion 5: las adiciones se cobran con el precio de adicion de ESTE tamaño
+                if (itemReq.getIdadiciones() != null && !itemReq.getIdadiciones().isEmpty()) {
+                    List<ProductoAdicion> permitidas = productoAdicionRepository.findByTamanoIdproducto(producto.getIdproducto());
                     for (Integer idAdicion : itemReq.getIdadiciones()) {
-                        Producto adicion = productoRepository.findById(idAdicion)
-                                .orElseThrow(() -> new IllegalArgumentException("Adición no encontrada: " + idAdicion));
-                        recargoEspecialidad = recargoEspecialidad.add(adicion.getPrecioBase());
-                        descBuilder.append(" [+").append(adicion.getNombre()).append("]");
+                        ProductoAdicion adicion = permitidas.stream()
+                                .filter(a -> a.getAdicionItem().getIdproducto().equals(idAdicion))
+                                .findFirst()
+                                .orElseThrow(() -> new NegocioException("La adición " + idAdicion + " no está disponible para este tamaño."));
+                        recargoEspecialidad = recargoEspecialidad.add(adicion.getPrecioAdicion());
+                        descBuilder.append(" [+").append(adicion.getAdicionItem().getNombre()).append("]");
                     }
                 }
             }
@@ -130,11 +148,11 @@ public class CotizacionService {
             itemsCotizados.add(itemRes);
         }
 
-        BigDecimal envio = "RECOGER".equalsIgnoreCase(request.getTipoEntrega()) ? BigDecimal.ZERO : costoDomicilioBase;
+        BigDecimal envio = recoger ? BigDecimal.ZERO : costoDomicilioBase;
         BigDecimal descuento = BigDecimal.ZERO;
         BigDecimal total = subtotal.add(envio).subtract(descuento);
 
-        boolean cumpleMinimo = "RECOGER".equalsIgnoreCase(request.getTipoEntrega()) || subtotal.compareTo(pedidoMinimo) >= 0;
+        boolean cumpleMinimo = recoger || subtotal.compareTo(pedidoMinimo) >= 0;
 
         CotizacionDTO.Response res = new CotizacionDTO.Response();
         res.setValido(cumpleMinimo);
@@ -150,12 +168,24 @@ public class CotizacionService {
         return res;
     }
 
+    private void validarVendible(Producto producto, boolean recoger) {
+        String tipo = producto.getTipoProducto();
+        boolean vendible = Boolean.TRUE.equals(producto.getActivo()) && ("P".equals(tipo) || "O".equals(tipo));
+        if (!vendible) {
+            throw new NegocioException("El producto con ID " + producto.getIdproducto() + " no está disponible.");
+        }
+        if (!recoger && Boolean.FALSE.equals(producto.getAplicaDomicilio())) {
+            throw new NegocioException("El producto '" + producto.getNombre() + "' no está disponible para domicilio.");
+        }
+    }
+
+    /** Una especialidad que no existe para ese tamaño se rechaza: antes se cobraba en 0 sin avisar. */
     private BigDecimal obtenerRecargoTamano(Integer idTamano, Integer idEspecialidad) {
         return especialidadTamanoRepository.findByTamanoIdproducto(idTamano).stream()
                 .filter(et -> et.getEspecialidad().getIdproducto().equals(idEspecialidad))
                 .findFirst()
                 .map(EspecialidadTamano::getRecargo)
-                .orElse(BigDecimal.ZERO);
+                .orElseThrow(() -> new NegocioException("La especialidad seleccionada no está disponible para este tamaño."));
     }
 }
 

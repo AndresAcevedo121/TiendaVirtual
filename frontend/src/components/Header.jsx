@@ -20,6 +20,7 @@ export default function Header({
   tiendas,
   tiendaActual,
   onOpenSedesModal,
+  onOpenCoberturaModal,
   tipoEntrega,
   onChangeTipoEntrega,
   searchQuery,
@@ -112,15 +113,21 @@ export default function Header({
             </button>
           </div>
 
-          {/* Botón Validar Cobertura (preparado para servicio de validación) */}
+          {/* Botón Validar Cobertura */}
           <button
             type="button"
             className="sede-picker-btn"
             title="Validar cobertura"
+            onClick={onOpenCoberturaModal}
           >
             <MapPin size={16} className="text-primary" />
             <span className="sede-picker-text">
               <strong>Validar cobertura</strong>
+              {tiendaActual?.nombre && (
+                <small style={{ display: 'block', fontSize: '0.72rem', opacity: 0.78 }}>
+                  Sede: {tiendaActual.nombre}
+                </small>
+              )}
             </span>
           </button>
         </div>

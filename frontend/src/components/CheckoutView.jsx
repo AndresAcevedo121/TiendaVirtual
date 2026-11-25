@@ -21,7 +21,7 @@ import {
   ShoppingBag,
   QrCode
 } from 'lucide-react';
-import { crearPedido } from '../services/api';
+import { crearPedido, validarCobertura } from '../services/api';
 import { formatCOP, BUSINESS_RULES, estimatePuntos } from '../utils/format';
 
 export default function CheckoutView({
@@ -29,7 +29,9 @@ export default function CheckoutView({
   setCart,
   onUpdateQty,
   onRemoveItem,
+  tiendas = [],
   tiendaActual,
+  onSelectTienda,
   onOpenSedesModal,
   tipoEntrega,
   onChangeTipoEntrega,
@@ -64,6 +66,38 @@ export default function CheckoutView({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [pedidoExitoso, setPedidoExitoso] = useState(null);
+  const [coberturaEstado, setCoberturaEstado] = useState(null);
+
+  const aplicarTiendaCobertura = (res) => {
+    if (!res?.cobertura || !res?.idTienda || !onSelectTienda) return;
+    const encontrada = tiendas.find(t => t.idtienda === res.idTienda);
+    if (encontrada && encontrada.idtienda !== tiendaActual?.idtienda) {
+      onSelectTienda(encontrada);
+    }
+  };
+
+  const handleValidarCobertura = async () => {
+    if (!direccion.trim()) {
+      setCoberturaEstado({ error: 'Ingresa primero tu dirección de entrega en el formulario para validar la cobertura.' });
+      return;
+    }
+    setCoberturaEstado({ loading: true, error: null, resultado: null });
+    try {
+      const res = await validarCobertura({
+        direccion: direccion.trim(),
+        municipio: municipio.trim() || tiendaActual?.municipio || 'Medellin',
+        barrio: barrio.trim() || undefined
+      });
+      setCoberturaEstado({ loading: false, resultado: res, error: null });
+      aplicarTiendaCobertura(res);
+    } catch (err) {
+      setCoberturaEstado({
+        loading: false,
+        resultado: null,
+        error: err.message || 'No fue posible validar la cobertura en este momento.'
+      });
+    }
+  };
 
   useEffect(() => {
     if (tiendaActual?.municipio && !customerDraft?.municipio) {
@@ -91,7 +125,16 @@ export default function CheckoutView({
   const permiteDomicilio = tiendaActual?.permiteDomicilio !== false;
   const permiteRecoger = tiendaActual?.permiteRecoger !== false;
   const tiendaBloqueada = Boolean(tiendaActual?.bloqueada);
-  const quoteInvalida = cotizacion && cotizacion.valido === false && cumpleMinimo;
+  const errorServidor = cotizacion?.error === true;
+  const quoteInvalida = cotizacion && cotizacion.valido === false && (cumpleMinimo || errorServidor);
+  const sinCobertura =
+    tipoEntrega === 'DOMICILIO' &&
+    Boolean(coberturaEstado?.resultado) &&
+    !coberturaEstado.resultado.cobertura;
+  const tiendaCoberturaCerrada =
+    tipoEntrega === 'DOMICILIO' &&
+    Boolean(coberturaEstado?.resultado?.cobertura) &&
+    !coberturaEstado.resultado.tiendaDisponible;
 
   const handleCheckCupon = () => {
     if (!cuponInput.trim()) return;
@@ -106,6 +149,10 @@ export default function CheckoutView({
 
     if (cart.length === 0) {
       setErrorMsg('Tu carrito está vacío.');
+      return;
+    }
+    if (!tiendaActual) {
+      setErrorMsg('Selecciona una sede para continuar.');
       return;
     }
     if (tiendaBloqueada) {
@@ -142,6 +189,48 @@ export default function CheckoutView({
       return;
     }
 
+    let idTiendaFinal = tiendaActual.idtienda;
+    if (tipoEntrega === 'DOMICILIO') {
+      let resultadoCob = coberturaEstado?.resultado;
+      if (!resultadoCob) {
+        setCoberturaEstado({ loading: true, error: null, resultado: null });
+        try {
+          resultadoCob = await validarCobertura({
+            direccion: direccion.trim(),
+            municipio: municipio.trim() || tiendaActual?.municipio || 'Medellin',
+            barrio: barrio.trim() || undefined
+          });
+          setCoberturaEstado({ loading: false, resultado: resultadoCob, error: null });
+          aplicarTiendaCobertura(resultadoCob);
+        } catch (err) {
+          setCoberturaEstado({
+            loading: false,
+            resultado: null,
+            error: err.message || 'No fue posible validar la cobertura en este momento.'
+          });
+          setErrorMsg(err.message || 'No fue posible validar la cobertura de tu dirección.');
+          return;
+        }
+      }
+
+      if (!resultadoCob.cobertura) {
+        setErrorMsg(
+          resultadoCob.mensaje ||
+            'Tu dirección no cuenta con cobertura de domicilio. Puedes seleccionar "Recoger en Sede".'
+        );
+        return;
+      }
+      if (!resultadoCob.tiendaDisponible) {
+        setErrorMsg(
+          `La sede ${resultadoCob.nombreTienda || 'asignada'} que cubre tu sector no se encuentra disponible temporalmente.`
+        );
+        return;
+      }
+      if (resultadoCob.idTienda) {
+        idTiendaFinal = resultadoCob.idTienda;
+      }
+    }
+
     if (guardarDatosLocal) {
       onSaveCustomerDraft({
         nombre: nombre.trim(),
@@ -169,7 +258,7 @@ export default function CheckoutView({
 
       const payload = {
         orderToken,
-        idtienda: tiendaActual?.idtienda || 1,
+        idtienda: idTiendaFinal,
         tipoEntrega,
         clienteNombre: nombre.trim(),
         clienteTelefono: telefono.trim(),
@@ -343,8 +432,14 @@ export default function CheckoutView({
                   </span>
                 </div>
               </div>
-              <button type="button" className="btn-link-subtle" title="Validar cobertura">
-                Validar cobertura
+              <button
+                type="button"
+                className="btn-link-subtle"
+                title="Validar cobertura"
+                onClick={handleValidarCobertura}
+                disabled={coberturaEstado?.loading}
+              >
+                {coberturaEstado?.loading ? 'Validando...' : 'Validar cobertura'}
               </button>
             </div>
           </section>
@@ -398,15 +493,59 @@ export default function CheckoutView({
               {tipoEntrega === 'DOMICILIO' && (
                 <>
                   <div className="form-field form-field--full">
-                    <label htmlFor="chk-dir">Dirección de Entrega *</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <label htmlFor="chk-dir">Dirección de Entrega *</label>
+                      <button
+                        type="button"
+                        className="btn-link-subtle"
+                        onClick={handleValidarCobertura}
+                        disabled={coberturaEstado?.loading || !direccion.trim()}
+                        style={{ fontSize: '0.82rem', padding: '0 4px', cursor: 'pointer' }}
+                      >
+                        {coberturaEstado?.loading ? 'Validando...' : 'Validar cobertura'}
+                      </button>
+                    </div>
                     <input
                       id="chk-dir"
                       type="text"
                       required
-                      placeholder="Ej: Calle 10 # 20-30"
+                      placeholder="Ej: Carrera 45 # 70-10"
                       value={direccion}
-                      onChange={e => setDireccion(e.target.value)}
+                      onChange={e => {
+                        setDireccion(e.target.value);
+                        if (coberturaEstado) setCoberturaEstado(null);
+                      }}
                     />
+                    {coberturaEstado?.resultado && (
+                      <div
+                        className={`info-banner ${
+                          coberturaEstado.resultado.cobertura && coberturaEstado.resultado.tiendaDisponible
+                            ? 'info-banner--success'
+                            : 'info-banner--amber'
+                        }`}
+                        style={{ marginTop: '0.5rem' }}
+                      >
+                        {coberturaEstado.resultado.cobertura && coberturaEstado.resultado.tiendaDisponible ? (
+                          <CheckCircle2 size={16} />
+                        ) : (
+                          <AlertTriangle size={16} />
+                        )}
+                        <span>
+                          {coberturaEstado.resultado.cobertura
+                            ? coberturaEstado.resultado.tiendaDisponible
+                              ? `Cobertura confirmada: tu pedido será despachado por la Sede ${coberturaEstado.resultado.nombreTienda}.`
+                              : `La sede ${coberturaEstado.resultado.nombreTienda || 'asignada'} que cubre tu zona se encuentra cerrada temporalmente.`
+                            : coberturaEstado.resultado.mensaje ||
+                              'Tu dirección no cuenta con cobertura para domicilio. Puedes elegir "Recoger en Sede".'}
+                        </span>
+                      </div>
+                    )}
+                    {coberturaEstado?.error && (
+                      <div className="info-banner info-banner--error" style={{ marginTop: '0.5rem' }}>
+                        <AlertTriangle size={16} />
+                        <span>{coberturaEstado.error}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="form-field">
@@ -701,7 +840,16 @@ export default function CheckoutView({
 
             <button
               type="submit"
-              disabled={submitting || !cumpleMinimo || tiendaBloqueada || quoteInvalida}
+              disabled={
+                submitting ||
+                coberturaEstado?.loading ||
+                !tiendaActual ||
+                !cumpleMinimo ||
+                tiendaBloqueada ||
+                quoteInvalida ||
+                sinCobertura ||
+                tiendaCoberturaCerrada
+              }
               className="btn-primary-pill btn-lg btn-full"
             >
               {submitting ? 'Confirmando pedido...' : `Confirmar y Pagar · ${formatCOP(total)}`}
